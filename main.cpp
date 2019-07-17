@@ -109,8 +109,8 @@ int print_TCP(const u_char* Packet_DATA){
     // TCP check
     if(TH->data_offset < 4) return 0;
 
-    printf("[Source] <Port> Number : %d\n", ntohs(TH->source_port));
-    printf("[Destination] <Port> Number : %d\n", ntohs(TH->dest_port));
+    printf("[Source] <Port> Number : %X(Hex) / %d(Dec)\n", ntohs(TH->source_port), ntohs(TH->source_port));
+    printf("[Destination] <Port> Number : %X(Hex) / %d(Dec)\n", ntohs(TH->dest_port), ntohs(TH->dest_port));
 
     return ((TH->data_offset) * 4);
 }
