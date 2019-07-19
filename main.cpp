@@ -2,6 +2,11 @@
 #include <stdio.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+
+char WIP[2]; // what_is_protocol
 
 struct eth_addr
 {
@@ -23,6 +28,7 @@ struct ip_header // by IP header order & Size : minimum 20 Bytes
         u_char type_of_service; // 1 Octet
         u_short total_length; // 2 Octet
         u_short identification; // 2 Octet
+	u_char flags; // 0.5 Octet
         u_char frag_offset:5; // 0.5 Octet
         u_char more_fragment:1; // 0.5 Octet
         u_char dont_fragment:1; // 0.5 Octet
@@ -56,14 +62,15 @@ struct tcp_header // by TCP header order & Size : minimum 20 Bytes
         u_short urgent_pointer; // 2 Octet
 };
 
-void Print_Eth(const u_char* Packet_DATA){
+uint8_t Print_Eth(const u_char* Packet_DATA){
     struct eth_header* EH = (struct eth_header*)(Packet_DATA);
+    uint8_t EH_length = (uint8_t)(sizeof(EH));
     u_short ethernet_type;
     ethernet_type = ntohs(EH->eth_type);
 
     if(ethernet_type != 0x0800){
         printf("Ethernet type is not IP\n");
-        return ;
+        return 0;
     } // IP CHECK
 
     printf("[Source] <MAC> Address : %02x:%02x:%02x:%02x:%02x:%02x:\n",
@@ -81,9 +88,10 @@ void Print_Eth(const u_char* Packet_DATA){
               EH->eth_destination_host.eth_address_octets[3],
                EH->eth_destination_host.eth_address_octets[4],
                 EH->eth_destination_host.eth_address_octets[5]);
+    return EH_length;
 }
 
-int Print_IP(const u_char* Packet_DATA){
+char* Print_IP(const u_char* Packet_DATA){
     struct ip_header* IH = (struct ip_header*)(Packet_DATA);
 
     // IP Check
@@ -96,11 +104,16 @@ int Print_IP(const u_char* Packet_DATA){
     // 8 : PIP
     // 9 : TUBA
 
+    //printf("TTL : %x\n", IH->time_to_live);
+    //printf("protocol : %x\n", IH->protocol);
+
+    sprintf(WIP, "%x", IH->protocol);
+    //printf("WIP : %s\n", WIP);
 
     printf("[Source] <IP> Address : %s\n", inet_ntoa(IH->source_address));
     printf("[Destination] <IP> Address : %s\n", inet_ntoa(IH->destination_address));
 
-    return ((IH->header_len) * 4);
+    return WIP;
 }
 
 int print_TCP(const u_char* Packet_DATA){
@@ -109,16 +122,14 @@ int print_TCP(const u_char* Packet_DATA){
     // TCP check
     if(TH->data_offset < 4) return 0;
 
-    printf("[Source] <Port> Number : %X(Hex) / %d(Dec)\n", ntohs(TH->source_port), ntohs(TH->source_port));
-    printf("[Destination] <Port> Number : %X(Hex) / %d(Dec)\n", ntohs(TH->dest_port), ntohs(TH->dest_port));
+    printf("[Source] <Port> Number : %d\n", ntohs(TH->source_port));
+    printf("[Destination] <Port> Number : %d\n", ntohs(TH->dest_port));
 
     return ((TH->data_offset) * 4);
 }
 
 void print_Data(const u_char* Packet_DATA){
-    int n = sizeof (Packet_DATA);
-    if(n > 10) return ;
-    for(int i = 0; i < n; i++) printf("%c", Packet_DATA[i]);
+    for(int i = 0; i < 10; i++) printf("%c", Packet_DATA[i]);
     printf("\n");
 }
 
@@ -134,7 +145,6 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  int where = 0;
   char* dev = argv[1];
   char errbuf[PCAP_ERRBUF_SIZE];
   pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
@@ -154,21 +164,38 @@ int main(int argc, char* argv[]) {
     printf("-- %u Bytes captured --\n\n", header->caplen);
 
     printf("-------_Ethernet_-------\n");
-    Print_Eth(packet);
+    uint8_t tmp = 0; // Ethernet header size
+    tmp = Print_Eth(packet);
+    //printf("packet : %d\n", tmp);
+    if(tmp > 14) break;
     printf("\n");
 
     printf("----------_IP_----------\n");
     packet += 14;
-    where = Print_IP(packet);
+    char* tmp2; // IP protocol type
+    int WIP = 0; // protocol's header size
+    tmp2 = Print_IP(packet);
     printf("\n");
 
-    printf("----------_TCP_---------\n");
-    packet += where;
-    where = print_TCP(packet);
+    //printf("tmp2 = %s\n", tmp2);
+    if(!strcmp(tmp2, "6")){ // TCP header : 20 Bytes
+        WIP = 20;
+    }
+    else if(!strcmp(tmp2, "11") || !strcmp(tmp2, "1")){
+        WIP = 8; // UDP header & ICMP header : 8 Bytes
+    }
+    else if(!strcmp(tmp2, "84")){
+        WIP = 4; // SCTP header : 4Bytes
+    }
+
+    printf("--------_0x%02x_--------\n", atoi(tmp2));
+    packet += 20;
+    print_TCP(packet);
+    //printf("WIP : %d\n", WIP);
     printf("\n");
 
     printf("---------_DATA_---------\n");
-    packet += where;
+    packet += WIP;
     print_Data(packet);
     printf("\n");
 
