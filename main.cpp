@@ -62,6 +62,16 @@ struct tcp_header // by TCP header order & Size : minimum 20 Bytes
         u_short urgent_pointer; // 2 Octet
 };
 
+struct udp_header
+{
+	u_short source_port; // 2 Octet
+	u_short dest_port; // 2 Octet
+	u_short length; // 2 Octet
+	u_short checksum; // 2 Octet
+};
+
+///////////////////////////////////////////////////////////
+
 uint8_t Print_Eth(const u_char* Packet_DATA){
     struct eth_header* EH = (struct eth_header*)(Packet_DATA);
     uint8_t EH_length = (uint8_t)(sizeof(EH));
@@ -122,10 +132,68 @@ int print_TCP(const u_char* Packet_DATA){
     // TCP check
     if(TH->data_offset < 4) return 0;
 
+    char* sp = (char*)malloc(sizeof(TH->source_port));
+    sprintf(sp, "%d", ntohs(TH->source_port));
+    char* dp = (char*)malloc(sizeof(TH->dest_port));
+    sprintf(dp, "%d", ntohs(TH->dest_port));
+
+    //printf("sp : %s\n", sp);
+    //printf("dp : %s\n", dp);
+
+    if((!strcmp(sp, "443")) || (!strcmp(dp, "443"))){
+        printf("TCP SSL(HTTPS) protocol\n");
+    }
+    else if((!strcmp(sp, "25")) || (!strcmp(dp, "25"))){
+        printf("TCP SMTP protocol\n");
+    }
+    else if((!strcmp(sp, "53")) || (!strcmp(dp, "53"))){
+        printf("TCP DNS protocol\n");
+    }
+    else if((!strcmp(sp, "80")) || (!strcmp(dp, "80"))){
+        printf("TCP HTTP protocol\n");
+    }
+    else if((!strcmp(sp, "22")) || (!strcmp(dp, "22"))){
+        printf("TCP SSH protocol\n");
+    }
+    else if((!strcmp(sp, "23")) || (!strcmp(dp, "23"))){
+        printf("TCP Telnet protocol\n");
+    }
+    else if((!strcmp(sp, "111")) || (!strcmp(dp, "111"))){
+        printf("TCP RPC protocol\n");
+    }
+
     printf("[Source] <Port> Number : %d\n", ntohs(TH->source_port));
     printf("[Destination] <Port> Number : %d\n", ntohs(TH->dest_port));
 
     return ((TH->data_offset) * 4);
+}
+
+
+int print_UDP(const u_char* Packet_DATA){
+    struct udp_header* UH = (struct udp_header*)(Packet_DATA);
+
+    char* sp = (char*)malloc(sizeof(UH->source_port));
+    sprintf(sp, "%d", ntohs(UH->source_port));
+    char* dp = (char*)malloc(sizeof(UH->dest_port));
+    sprintf(dp, "%d", ntohs(UH->dest_port));
+
+    //printf("sp : %s\n", sp);
+    //printf("dp : %s\n", dp);
+
+    if((!strcmp(sp, "80")) || (!strcmp(dp, "80"))){
+        printf("UDP HTTP protocol\n");
+    }
+    else if((!strcmp(sp, "161")) || (!strcmp(dp, "161"))){
+        printf("UDP SNMP protocol\n");
+    }
+    else if((!strcmp(sp, "111")) || (!strcmp(dp, "111"))){
+        printf("UDP RPC protocol\n");
+    }
+
+    printf("[Source] <Port> Number : %d\n", ntohs(UH->source_port));
+    printf("[Destination] <Port> Number : %d\n", ntohs(UH->dest_port));
+
+    return (UH->length);
 }
 
 void print_Data(const u_char* Packet_DATA){
@@ -188,15 +256,29 @@ int main(int argc, char* argv[]) {
         WIP = 4; // SCTP header : 4Bytes
     }
 
-    printf("--------_0x%02x_--------\n", atoi(tmp2));
+    if(!strcmp(tmp2, "6"))
+        printf("---------_TCP_---------\n");
+    else if(!strcmp(tmp2, "11"))
+        printf("---------_UDP_---------\n");
+    else
+        printf("--------_Protocol_--------\n");
+
     packet += 20;
-    print_TCP(packet);
+    if(!strcmp(tmp2, "6"))
+        print_TCP(packet);
+    else if(!strcmp(tmp2, "11"))
+        print_UDP(packet);
+    else
+        printf("No Header Data here for this protocol!\n");
     //printf("WIP : %d\n", WIP);
     printf("\n");
 
     printf("---------_DATA_---------\n");
     packet += WIP;
-    print_Data(packet);
+    if((!strcmp(tmp2, "6")) || (!strcmp(tmp2, "11")))
+        print_Data(packet);
+    else
+        printf("No Protocol Data here!\n");
     printf("\n");
 
     printf("########################\n");
